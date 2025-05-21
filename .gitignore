@@ -1,0 +1,94 @@
+# Node.js (Next.js frontend)
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# VSCode & IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Python (Flask backend)
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+instance/
+.env
+.env.*
+.venv/
+venv/
+pip-log.txt
+*.sqlite3
+
+# Flask + migrations
+migrations/
+*.db
+
+# Coverage / testing
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+pytest_cache/
+.pytest_cache/
+.cache/
+
+# MyPy & other tools
+.mypy_cache/
+.dmypy.json
+.pyre/
+
+# Docker
+*.pid
+*.sock
+*.pid.lock
+docker-compose.override.yml
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Build artifacts
+build/
+dist/
+*.egg
+.eggs/
+
+# OS temp files
+*.bak
+*.tmp
+*.orig
+Thumbs.db
+
+# Custom uploads / file storage (if used)
+uploads/
+resumes/
+
+# Output
+*.pdf
+*.zip
+*.tar
+*.tgz
+
+# Secrets
+secrets.*
+*.pem
+*.key
+*.crt
