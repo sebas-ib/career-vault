@@ -1,7 +1,9 @@
 # career-vault
 
-CareerVault is a full-stack job application management platform developed to help users efficiently track and analyze their job search activities. It offers features such as resume management, job tracking, job application search, analytics, and AI job description summarization. The application is built using a Next.js frontend and a Flask backend, deployed in a containerized architecture on AWS.
+CareerVault is a full-stack job application management application made to help users  track and analyze their job search activities. The application is built using a Next.js frontend and a Flask backend, deployed in a containerized architecture on AWS.
 
+---
+### Demo: https://careervaultapp.com/
 ---
 
 ## Features
@@ -37,10 +39,10 @@ CareerVault is a full-stack job application management platform developed to hel
 * **AWS EC2**: The frontend and backend services are deployed in separate Docker containers on EC2 instances.
 * **AWS S3**: Used for storing user-uploaded resumes securely and efficiently.
 * **AWS RDS (PostgreSQL)**: Hosts the application's relational database.
-* **Hugging Face Inference API**: Provides natural language summarization of job descriptions using the `distilbart-cnn-12-6` model. The integration is secured via an API token, as shown below:
+* **Hugging Face Inference API**: Provides natural language summarization of job descriptions using the `facebook/bart-large-cnn` model. The integration is secured via an API token, as shown below:
 
   ```python
-  API_URL = "https://api-inference.huggingface.co/models/sshleifer/distilbart-cnn-12-6"
+  API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
   HF_TOKEN = os.environ.get("API_TOKEN")
   HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
   ```
