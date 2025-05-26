@@ -156,7 +156,7 @@ Or, you can also run the frontend and backend independently with `npm run dev` a
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 ### Dashboard View
 ![Dashboard](./frontend/public/screenshot1.png)
