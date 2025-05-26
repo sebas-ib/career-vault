@@ -11,6 +11,7 @@ interface Resume {
 }
 
 export default function EditJobPage() {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
     const {status, data: session} = useSession();
     const router = useRouter();
     const {id} = router.query;
@@ -43,7 +44,7 @@ export default function EditJobPage() {
         if (status === "authenticated" && session?.user?.email && id) {
             // Fetch application data
             axios
-                .get(`http://localhost:5000/api/applications/${id}`, {
+                .get(`${API_BASE_URL}/api/applications/${id}`, {
                     headers: {
                         "X-User-Email": session.user.email,
                     },
@@ -64,18 +65,18 @@ export default function EditJobPage() {
 
             // Fetch resumes
             axios
-                .get("http://localhost:5000/api/resumes", {
+                .get(`${API_BASE_URL}/api/resumes`, {
                     headers: {"X-User-Email": session.user.email},
                 } as AxiosRequestConfig)
                 .then(res => setResumes(res.data))
                 .catch(() => setError("Failed to load resumes."));
         }
-    }, [status, session, id]);
+    }, [status, session, id, API_BASE_URL]);
 
     useEffect(() => {
         if (formData.resume_used && session?.user?.email) {
             axios
-                .get(`http://localhost:5000/api/resumes/${formData.resume_used}/signed-url`, {
+                .get(`${API_BASE_URL}/api/resumes/${formData.resume_used}/signed-url`, {
                     headers: {
                         "X-User-Email": session.user.email,
                     },
@@ -83,7 +84,7 @@ export default function EditJobPage() {
                 .then(res => setResumePreviewUrl(res.data.signed_url))
                 .catch(() => setResumePreviewUrl(null));
         }
-    }, [formData.resume_used, session]);
+    }, [formData.resume_used, session, API_BASE_URL]);
 
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -96,7 +97,7 @@ export default function EditJobPage() {
         setError(null);
         try {
             await axios.patch(
-                `http://localhost:5000/api/applications/${id}`,
+                `${API_BASE_URL}/api/applications/${id}`,
                 {
                     ...formData,
                     company_name: formData.company,

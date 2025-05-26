@@ -22,6 +22,11 @@ export default function ApplicationsPage() {
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
 
+
+    useEffect(() => {
+      console.log("API BASE URL =", process.env.NEXT_PUBLIC_API_BASE_URL);
+    }, []);
+
     useEffect(() => {
         if (status === "unauthenticated") {
             router.push("/login");

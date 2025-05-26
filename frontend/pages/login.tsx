@@ -32,7 +32,7 @@ export default function LoginPage() {
         };
 
         handleLogin();
-    }, [status, session, router]);
+    }, [status, session, router, API_BASE_URL]);
 
     return (
         <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-neutral-100">

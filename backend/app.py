@@ -21,11 +21,14 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 # Flask App Setup
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY")
-CORS(app, supports_credentials=True, origins=["http://localhost:3000",
-                                              "http://52.90.199.48:3000",
-                                              "https://careervaultapp.com"])
 
-API_URL = "https://api-inference.huggingface.co/models/sshleifer/distilbart-cnn-12-6"
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": [
+    "http://localhost:3000",
+    "http://35.175.218.182:3000",
+    "https://careervaultapp.com"
+]}}, allow_headers=["Content-Type", "Authorization", "X-User-Email"])
+
+API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 HF_TOKEN = os.environ.get("API_TOKEN")
 HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
 print("Token loaded:", bool(HF_TOKEN))
@@ -358,58 +361,51 @@ def parse_job_url():
             company.get_text(strip=True) if company else "Company Not Found"
         )
 
-        # Try to find job description from semantic classes
-        description_candidates = []
+        # Keywords to search for
         keywords = [
-            "description", "job-desc", "responsibilities", "qualifications",
-            "jobDescriptionText", "job", "listing", "content", "details",
-            "about", "summary", "expectations", "role", "opportunity", "profile"
+            "responsibilities", "requirements", "qualifications", "job", "position",
+            "expectations", "experience", "design", "description", "engineer",
+            "develop", "skills", "team", "role", "tasks", "opportunity"
         ]
+
+        # Search for text containers
+        candidate_sections = []
         for tag in ["section", "article", "div", "main"]:
-            for keyword in keywords:
-                found = soup.find_all(tag, class_=lambda c: c and keyword in c.lower()) + \
-                        soup.find_all(tag, id=lambda i: i and keyword in i.lower())
-                description_candidates.extend(found)
+            containers = soup.find_all(tag)
+            for container in containers:
+                text = " ".join(p.get_text(strip=True) for p in container.find_all(["p", "li"]))
+                word_count = len(text.split())
+                if word_count >= 100:  # Skip tiny containers
+                    keyword_hits = sum(1 for kw in keywords if kw in text.lower())
+                    candidate_sections.append((keyword_hits, text[:10000]))  # Keep first 10k chars max
 
-        longest_desc = ""
-        for container in description_candidates:
-            text = " ".join(p.get_text(strip=True) for p in container.find_all(["p", "li"]))
-            if len(text) > len(longest_desc):
-                longest_desc = text
+        # Pick the section with the most keyword hits
+        candidate_sections.sort(reverse=True, key=lambda x: x[0])
+        best_text = candidate_sections[0][1] if candidate_sections else ""
 
-        # Fallback: collect multiple reasonable <p> tags
-        if not longest_desc:
-            paragraphs = soup.find_all("p")
-            visible_paragraphs = [p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True).split()) > 10]
-            longest_desc = " ".join(visible_paragraphs[:10])
+        # Fallback
+        if not best_text:
+            return jsonify({
+                "title": title_text,
+                "company": company_text,
+                "job_type": "Unknown",
+                "location": "Unknown",
+                "description": "Couldn't summarize description"
+            })
 
-        # Final fallback
-        if not longest_desc:
-            return jsonify({"error": "No usable content found on the page."}), 422
-
-        # Validate extracted description
-        if not any(word in longest_desc.lower() for word in [
-            "description", "job-desc", "responsibilities", "qualifications",
-            "jobDescriptionText", "job", "listing", "content", "details",
-            "about", "design", "description", "engineer", "develop"
-            ]):
-            return jsonify({"error": "Could not extract a valid job description."}), 422
+        if not best_text or len(best_text.split()) < 50:
+            return jsonify({
+                "title": title_text,
+                "company": company_text,
+                "job_type": "Unknown",
+                "location": "Unknown",
+                "description": "Couldn't summarize description"
+            })
 
         # Summarize
-        summary = summarize_text(longest_desc[:500])
-
-        # Validate summarization
-        required_keywords = [
-            "responsibilities", "requirements", "qualifications", "job", "position", "expectations",
-            "experience", "design", "description", "engineer", "develop", "skills", "team", "responsibility",
-            "requirement"
-        ]
-        summary_lower = summary.lower()
-        missing_keywords = [kw for kw in required_keywords if kw not in summary_lower]
-
-        if missing_keywords:
-            print("Summary missing keywords:", missing_keywords)
-            summary = longest_desc[:800]  # Fallback to raw description
+        summary = summarize_text(best_text[:1500])
+        if not summary or len(summary.strip()) < 40:
+            summary = best_text[:1000]
 
         return jsonify({
             "title": title_text,
@@ -422,6 +418,7 @@ def parse_job_url():
     except Exception as e:
         print("URL parsing error:", e)
         return jsonify({"error": f"Failed to parse job URL: {str(e)}"}), 500
+
 
 
 
