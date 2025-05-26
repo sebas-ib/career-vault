@@ -2,14 +2,14 @@ import subprocess
 
 # config
 EC2_USER = "ec2-user"
-EC2_HOST = "ec2-35-175-218-182.compute-1.amazonaws.com"  # e.g., ec2-3-88-XXX-XXX.compute-1.amazonaws.com
-EC2_PATH = "~/"           # Destination directory on EC2
-PEM_FILE = "/Users/sebastian/Downloads/career-vault.pem"    # Path to your SSH private key
-PROJECT_DIR = "."  # Current directory
+EC2_HOST = "ec2-35-175-218-182.compute-1.amazonaws.com" 
+EC2_PATH = "~/" 
+PEM_FILE = "/Users/sebastian/Downloads/career-vault.pem" 
+PROJECT_DIR = "."
 TAR_NAME = "career-vault.tar.gz"
 
 
-# STEP 1: Create the tarball locally
+# Create the tarball
 print("Creating tarball...")
 subprocess.run([
     "tar", "--exclude=.DS_Store", "--exclude=node_modules", "--exclude=.env.local",
