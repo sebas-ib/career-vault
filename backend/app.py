@@ -140,7 +140,7 @@ def upload_resume_to_s3():
             "resume": {
                 "filename": resume.filename,
                 "file_url": resume.file_url,
-                "uploaded_at": resume.uploaded_at.isoformat(),
+                "uploaded_at": resume.uploaded_at.isoformat() + "Z",
             }
         })
 
@@ -161,7 +161,7 @@ def get_resumes():
             "id": r.id,
             "filename": r.filename,
             "file_url": r.file_url,
-            "uploaded_at": r.uploaded_at.isoformat()
+            "uploaded_at": r.uploaded_at.isoformat() + "Z"
         }
         for r in resumes
     ])
@@ -260,7 +260,7 @@ def handle_applications():
             "job_type": app.job_type,
             "location": app.location,
             "status": app.status,
-            "applied_at": app.applied_at.isoformat(),
+            "applied_at": app.applied_at.isoformat() + "Z",
             "application_url": app.application_url,
             "resume_used": str(app.resume_used) if app.resume_used else None,
             "application_method": app.application_method
