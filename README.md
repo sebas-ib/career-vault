@@ -3,7 +3,7 @@
 CareerVault is a full-stack job application management application made to help users  track and analyze their job search activities. The application is built using a Next.js frontend and a Flask backend, deployed in a containerized architecture on AWS.
 
 ---
-Demo: https://careervaultapp.com/
+### Demo: https://careervaultapp.com/
 ---
 
 ## Features
