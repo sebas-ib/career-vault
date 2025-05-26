@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 
 export default function LoginPage() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL!;
   const { status, data: session } = useSession();
   const router = useRouter();
 
@@ -19,7 +20,7 @@ export default function LoginPage() {
           console.log("Sending token to backend:", session.idToken);
 
           // Call backend to verify and create user
-          await axios.post('http://127.0.0.1:5000/api/verify-google-token', {
+          await axios.post(`${API_BASE_URL}/api/verify-google-token`, {
             token: session.idToken,
           });
 

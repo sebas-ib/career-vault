@@ -16,6 +16,7 @@ interface Application {
 }
 
 export default function SearchApplicationsPage() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
   const { status, data: session } = useSession();
   const router = useRouter();
 
@@ -35,16 +36,16 @@ export default function SearchApplicationsPage() {
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status]);
+  }, [status, router]);
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.email) {
       axios
-        .get("http://localhost:5000/api/applications", {
+        .get(`${API_BASE_URL}/api/applications`, {
           headers: {
             "X-User-Email": session.user.email,
           },
-        } as AxiosRequestConfig<any>)
+        } as AxiosRequestConfig)
         .then((res) => {
           setApplications(res.data);
           setFiltered(res.data);
@@ -52,7 +53,7 @@ export default function SearchApplicationsPage() {
         })
         .catch(() => setLoading(false));
     }
-  }, [status, session]);
+  }, [status, session, API_BASE_URL]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -76,7 +77,7 @@ export default function SearchApplicationsPage() {
 
   const handleStatusChange = async (id: number, newStatus: string) => {
     try {
-      await axios.patch(`http://localhost:5000/api/applications/${id}`, {
+      await axios.patch(`${API_BASE_URL}/api/applications/${id}`, {
         status: newStatus,
       }, {
         headers: {
@@ -85,13 +86,13 @@ export default function SearchApplicationsPage() {
       } as AxiosRequestConfig);
       setApplications(applications.map(app => app.id === id ? { ...app, status: newStatus } : app));
     } catch (error) {
-      console.error("Failed to update status");
+      console.error("Failed to update status", error);
     }
   };
 
   const handleDelete = async (id: number) => {
     try {
-      await axios.delete(`http://localhost:5000/api/applications/${id}`, {
+      await axios.delete(`${API_BASE_URL}/api/applications/${id}`, {
         headers: {
           "X-User-Email": session?.user?.email || "",
         },
@@ -102,7 +103,7 @@ export default function SearchApplicationsPage() {
       applyFilter(search, updated); // pass updated list to filter
 
     } catch (error) {
-      console.error("Failed to delete application");
+      console.error("Failed to delete application", error);
     }
   };
 
@@ -215,7 +216,7 @@ export default function SearchApplicationsPage() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-400 mt-2">
-                  Applied: {new Date(app.applied_at).toLocaleDateString()}
+                  Applied: {new Date(app.applied_at).toLocaleString()}
                 </p>
               </div>
             ))}

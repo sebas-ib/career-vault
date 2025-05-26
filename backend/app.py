@@ -1,19 +1,18 @@
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from dotenv import load_dotenv
-from transformers import pipeline, AutoTokenizer
 from bs4 import BeautifulSoup
 import requests
 import os
 from uuid import UUID
-from flask import send_from_directory
 import boto3
 from werkzeug.utils import secure_filename
+
 
 # Load env
 load_dotenv()
@@ -22,7 +21,15 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 # Flask App Setup
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY")
-CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
+CORS(app, supports_credentials=True, origins=["http://localhost:3000",
+                                              "http://52.90.199.48:3000",
+                                              "https://careervaultapp.com"])
+
+API_URL = "https://api-inference.huggingface.co/models/sshleifer/distilbart-cnn-12-6"
+HF_TOKEN = os.environ.get("API_TOKEN")
+HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
+print("Token loaded:", bool(HF_TOKEN))
+
 
 # DB Setup
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
@@ -30,23 +37,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# Summarizer Setup
-_summarizer = None
-_tokenizer = None
-
-
-def get_summarizer():
-    global _summarizer
-    if _summarizer is None:
-        _summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-    return _summarizer
-
-
-def get_tokenizer():
-    global _tokenizer
-    if _tokenizer is None:
-        _tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-cnn")
-    return _tokenizer
+from models import User, JobApplication, Resume
 
 
 def clean_text(text):
@@ -55,18 +46,22 @@ def clean_text(text):
 
 def summarize_text(text, max_length=130, min_length=30):
     cleaned = clean_text(text)
+    payload = {
+        "inputs": cleaned,
+        "parameters": {
+            "max_length": max_length,
+            "min_length": min_length,
+            "do_sample": False
+        }
+    }
+
     try:
-        summarizer = get_summarizer()
-        summary = summarizer(
-            cleaned,
-            max_length=max_length,
-            min_length=min_length,
-            do_sample=False,
-            clean_up_tokenization_spaces=True
-        )
-        return summary[0].get("summary_text", "")
+        response = requests.post(API_URL, headers=HEADERS, json=payload)
+        response.raise_for_status()
+        result = response.json()
+        return result[0].get("summary_text", "")
     except Exception as e:
-        print("Summarizer error:", e)
+        print("Summarizer API error:", e)
         return "Summary generation failed."
 
 
@@ -220,12 +215,18 @@ def serve_uploaded_file(filename):
 
 @app.route('/api/verify-google-token', methods=['POST'])
 def verify_google_token():
-    token = request.json.get('token')
+    data = request.get_json()
+    token = data.get('token')
+    print("Received token from frontend:", token)
+
     if not token:
         return jsonify({'status': 'error', 'message': 'Missing token'}), 400
 
     try:
+
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+        print("Token decoded:", idinfo)
+
         user = get_or_create_user_by_email(
             email=idinfo['email'],
             name=idinfo.get('name'),
@@ -240,6 +241,7 @@ def verify_google_token():
             }
         })
     except Exception as e:
+        print("Google token validation error:", e)
         return jsonify({'status': 'error', 'message': str(e)}), 401
 
 
@@ -342,30 +344,72 @@ def parse_job_url():
 
         soup = BeautifulSoup(response.text, "html.parser")
 
+        # Extract title
         title = soup.find("h1") or soup.find("title")
         title_text = title.get_text(strip=True) if title else "Job Title Not Found"
 
+        # Extract company
         company = (
-                soup.find("meta", {"property": "og:site_name"}) or
-                soup.find("meta", {"name": "author"}) or
-                soup.find("header")
+            soup.find("meta", {"property": "og:site_name"}) or
+            soup.find("meta", {"name": "author"}) or
+            soup.find("header")
         )
         company_text = company.get("content", "Unknown Company") if company and company.has_attr("content") else (
             company.get_text(strip=True) if company else "Company Not Found"
         )
 
-        job_description_text = ""
-        for tag in ["section", "main", "div"]:
-            container = soup.find(tag, class_=lambda c: c and "description" in c.lower())
-            if container:
-                paragraphs = container.find_all(["p", "li"])
-                job_description_text = " ".join(p.get_text(strip=True) for p in paragraphs)
-                break
+        # Try to find job description from semantic classes
+        description_candidates = []
+        keywords = [
+            "description", "job-desc", "responsibilities", "qualifications",
+            "jobDescriptionText", "job", "listing", "content", "details",
+            "about", "summary", "expectations", "role", "opportunity", "profile"
+        ]
+        for tag in ["section", "article", "div", "main"]:
+            for keyword in keywords:
+                found = soup.find_all(tag, class_=lambda c: c and keyword in c.lower()) + \
+                        soup.find_all(tag, id=lambda i: i and keyword in i.lower())
+                description_candidates.extend(found)
 
-        if not job_description_text:
-            job_description_text = " ".join(p.get_text(strip=True) for p in soup.find_all("p"))
+        longest_desc = ""
+        for container in description_candidates:
+            text = " ".join(p.get_text(strip=True) for p in container.find_all(["p", "li"]))
+            if len(text) > len(longest_desc):
+                longest_desc = text
 
-        summary = summarize_text(job_description_text[:3000] if job_description_text else "No description found.")
+        # Fallback: collect multiple reasonable <p> tags
+        if not longest_desc:
+            paragraphs = soup.find_all("p")
+            visible_paragraphs = [p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True).split()) > 10]
+            longest_desc = " ".join(visible_paragraphs[:10])
+
+        # Final fallback
+        if not longest_desc:
+            return jsonify({"error": "No usable content found on the page."}), 422
+
+        # Validate extracted description
+        if not any(word in longest_desc.lower() for word in [
+            "description", "job-desc", "responsibilities", "qualifications",
+            "jobDescriptionText", "job", "listing", "content", "details",
+            "about", "design", "description", "engineer", "develop"
+            ]):
+            return jsonify({"error": "Could not extract a valid job description."}), 422
+
+        # Summarize
+        summary = summarize_text(longest_desc[:500])
+
+        # Validate summarization
+        required_keywords = [
+            "responsibilities", "requirements", "qualifications", "job", "position", "expectations",
+            "experience", "design", "description", "engineer", "develop", "skills", "team", "responsibility",
+            "requirement"
+        ]
+        summary_lower = summary.lower()
+        missing_keywords = [kw for kw in required_keywords if kw not in summary_lower]
+
+        if missing_keywords:
+            print("Summary missing keywords:", missing_keywords)
+            summary = longest_desc[:800]  # Fallback to raw description
 
         return jsonify({
             "title": title_text,
@@ -381,7 +425,6 @@ def parse_job_url():
 
 
 
-from models import User, JobApplication, Resume
 
 if __name__ == "__main__":
     app.run(debug=True)

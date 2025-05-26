@@ -3,13 +3,21 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import axios, { AxiosRequestConfig } from "axios";
 
+interface Resume {
+  id: string;
+  filename: string;
+  file_url: string;
+  uploaded_at: string;
+}
+
 export default function AddJobPage() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
   const { status, data: session } = useSession();
   const router = useRouter();
 
   const [url, setUrl] = useState("");
   const [step, setStep] = useState<"paste" | "form">("paste");
-  const [resumes, setResumes] = useState<any[]>([]);
+  const [resumes, setResumes] = useState<Resume[]>([]);
   const [resumePreviewUrl, setResumePreviewUrl] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -32,31 +40,31 @@ export default function AddJobPage() {
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status]);
+  }, [status, router]);
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.email) {
       axios
-        .get("http://localhost:5000/api/resumes", {
+        .get(`${API_BASE_URL}/api/resumes`, {
           headers: { "X-User-Email": session.user.email },
         } as AxiosRequestConfig)
-        .then(res => setResumes(res.data))
-        .catch(err => console.error("Failed to fetch resumes", err));
+        .then((res) => setResumes(res.data))
+        .catch((err) => console.error("Failed to fetch resumes", err));
     }
-  }, [status, session]);
+  }, [status, session, API_BASE_URL]);
 
   useEffect(() => {
     if (formData.resume_used && session?.user?.email) {
       axios
-        .get(`http://localhost:5000/api/resumes/${formData.resume_used}/signed-url`, {
+        .get(`${API_BASE_URL}/api/resumes/${formData.resume_used}/signed-url`, {
           headers: { "X-User-Email": session.user.email },
         } as AxiosRequestConfig)
-        .then(res => setResumePreviewUrl(res.data.signed_url))
+        .then((res) => setResumePreviewUrl(res.data.signed_url))
         .catch(() => setResumePreviewUrl(null));
     } else {
       setResumePreviewUrl(null);
     }
-  }, [formData.resume_used, session]);
+  }, [formData.resume_used, session, API_BASE_URL]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -69,7 +77,7 @@ export default function AddJobPage() {
     setError(null);
     try {
       await axios.post(
-        "http://localhost:5000/api/applications",
+        `${API_BASE_URL}/api/applications`,
         {
           ...formData,
           company_name: formData.company,
@@ -81,7 +89,7 @@ export default function AddJobPage() {
           },
         } as AxiosRequestConfig
       );
-      router.push("/applications");
+      router.push("/");
     } catch (err) {
       console.error(err);
       setError("Failed to add job. Please try again.");
@@ -95,7 +103,7 @@ export default function AddJobPage() {
     setParsing(true);
     setError(null);
     try {
-      const res = await axios.post("http://localhost:5000/api/parse-url", { url });
+      const res = await axios.post(`${API_BASE_URL}/api/parse-url`, { url });
       setFormData({
         ...formData,
         ...res.data,
@@ -171,7 +179,9 @@ export default function AddJobPage() {
             <select name="resume_used" className="border p-3 rounded-lg w-full" value={formData.resume_used} onChange={handleChange}>
               <option value="">Select a resume</option>
               {resumes.map((r) => (
-                <option key={r.id} value={r.id}>{r.filename}</option>
+                <option key={r.id} value={r.id}>
+                  {r.filename}
+                </option>
               ))}
             </select>
 
@@ -201,7 +211,13 @@ export default function AddJobPage() {
             />
 
             <label>Description</label>
-            <textarea name="description" rows={4} className="border p-3 rounded-lg w-full" value={formData.description} onChange={handleChange} />
+            <textarea
+              name="description"
+              rows={4}
+              className="border p-3 rounded-lg w-full"
+              value={formData.description}
+              onChange={handleChange}
+            />
 
             <label>Status</label>
             <select name="status" className="border p-3 rounded-lg w-full" value={formData.status} onChange={handleChange}>
@@ -216,7 +232,7 @@ export default function AddJobPage() {
               disabled={submitting}
               className="mt-4 bg-black text-white py-2 px-4 rounded-lg hover:bg-gray-800 disabled:opacity-50"
             >
-              {submitting ? "Submitting..." : "Submit Job Application"}
+              {submitting ? "Adding..." : "Add to Vault"}
             </button>
           </div>
         )}

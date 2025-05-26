@@ -1,6 +1,7 @@
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState } from "react";
+import Image from "next/image";
 import {
   Menu,
   X,
@@ -41,10 +42,12 @@ export default function Navbar() {
         <div className="flex items-center gap-4">
           {session?.user?.image && (
             <Link href="/account">
-              <img
+              <Image
                 src={session.user.image}
                 alt="Profile"
-                className="w-8 h-8 rounded-full hover:ring-2 hover:ring-gray-300 hover:ring-offset-2"
+                width={32}
+                height={32}
+                className="rounded-full hover:ring-2 hover:ring-gray-300 hover:ring-offset-2"
                 referrerPolicy="no-referrer"
               />
             </Link>
@@ -63,10 +66,12 @@ export default function Navbar() {
             <div className="mb-6">
               <div className="flex items-center gap-3">
                 {session.user.image && (
-                  <img
+                  <Image
                     src={session.user.image}
                     alt="Avatar"
-                    className="w-10 h-10 rounded-full object-cover border"
+                    width={40}
+                    height={40}
+                    className="rounded-full object-cover border"
                     referrerPolicy="no-referrer"
                   />
                 )}
@@ -84,22 +89,22 @@ export default function Navbar() {
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2 pt-5">Navigation</p>
               <nav className="flex flex-col gap-2 text-sm">
-                <SidebarLink href="/" icon={<ClipboardList className="w-5 h-5" />}>
+                <SidebarLink onClick={() => setIsSidebarOpen(false)} href="/" icon={<ClipboardList className="w-5 h-5" />}>
                   My Applications
                 </SidebarLink>
-                <SidebarLink href="/add" icon={<FilePlus className="w-5 h-5" />}>
+                <SidebarLink onClick={() => setIsSidebarOpen(false)} href="/add" icon={<FilePlus className="w-5 h-5" />}>
                   Add New Job
                 </SidebarLink>
-                <SidebarLink href="/activity" icon={<Clock className="w-5 h-5" />}>
+                <SidebarLink onClick={() => setIsSidebarOpen(false)} href="/activity" icon={<Clock className="w-5 h-5" />}>
                   Recently Applied
                 </SidebarLink>
-                <SidebarLink href="/insights" icon={<BarChart3 className="w-5 h-5" />}>
+                <SidebarLink onClick={() => setIsSidebarOpen(false)} href="/insights" icon={<BarChart3 className="w-5 h-5" />}>
                   Analytics & Insights
                 </SidebarLink>
-                <SidebarLink href="/resume" icon={<Briefcase className="w-5 h-5" />}>
+                <SidebarLink onClick={() => setIsSidebarOpen(false)} href="/resume" icon={<Briefcase className="w-5 h-5" />}>
                   Manage Resumes
                 </SidebarLink>
-                <SidebarLink href="/search" icon={<Search className="w-5 h-5"/>} >
+                <SidebarLink onClick={() => setIsSidebarOpen(false)} href="/search" icon={<Search className="w-5 h-5" />}>
                   Search Job Applications
                 </SidebarLink>
               </nav>
@@ -115,16 +120,20 @@ function SidebarLink({
   href,
   icon,
   children,
+    onClick,
 }: {
   href: string;
   icon: React.ReactNode;
   children: React.ReactNode;
+  onClick: () => void;
 }) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       className="flex items-center gap-3 text-gray-700 hover:text-black transition px-3 py-2 rounded-md hover:bg-gray-100"
     >
+
       {icon}
       <span>{children}</span>
     </Link>

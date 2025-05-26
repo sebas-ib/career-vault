@@ -1,6 +1,6 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios, {AxiosRequestConfig} from "axios";
 import {
   BarChart,
@@ -21,6 +21,7 @@ interface Application {
 }
 
 export default function InsightsPage() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
   const { status, data: session } = useSession();
   const router = useRouter();
   const [applications, setApplications] = useState<Application[]>([]);
@@ -30,17 +31,11 @@ export default function InsightsPage() {
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status]);
+  }, [status, router]);
 
-  useEffect(() => {
-    if (status === "authenticated" && session?.user?.email) {
-      fetchApplications();
-    }
-  }, [status, session]);
-
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/applications", {
+      const res = await axios.get(`${API_BASE_URL}/api/applications`, {
         headers: {
           "X-User-Email": session?.user?.email || "",
         },
@@ -51,7 +46,13 @@ export default function InsightsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.user?.email, API_BASE_URL]);
+
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.email) {
+      fetchApplications();
+    }
+  }, [status, session, fetchApplications]);
 
   const statusCounts = applications.reduce<Record<string, number>>((acc, app) => {
     acc[app.status] = (acc[app.status] || 0) + 1;

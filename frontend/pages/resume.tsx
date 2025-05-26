@@ -1,7 +1,9 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import axios, {AxiosRequestConfig} from "axios";
+import { Session } from "next-auth";
+
 
 interface Resume {
   id: string;
@@ -10,9 +12,8 @@ interface Resume {
   uploaded_at: string;
 }
 
-
-
 export default function ResumePage() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
   const { status, data: session } = useSession();
   const router = useRouter();
 
@@ -21,13 +22,14 @@ export default function ResumePage() {
   const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  function ResumeViewer({ resume, session }: { resume: Resume; session: any }) {
+
+  function ResumeViewer({ resume, session }: { resume: Resume; session: Session | null }) {
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
     useEffect(() => {
       const getSignedUrl = async () => {
         try {
-          const res = await axios.get(`http://localhost:5000/api/resumes/${resume.id}/signed-url`, {
+          const res = await axios.get(`${API_BASE_URL}/api/resumes/${resume.id}/signed-url`, {
             headers: {
               "X-User-Email": session?.user?.email || "",
             },
@@ -46,7 +48,7 @@ export default function ResumePage() {
     if (!confirm("Are you sure you want to delete this resume?")) return;
 
       try {
-        await axios.delete(`http://localhost:5000/api/resumes/${resumeId}`, {
+        await axios.delete(`${API_BASE_URL}/api/resumes/${resumeId}`, {
           headers: {
             "X-User-Email": session?.user?.email || "",
           },
@@ -82,17 +84,12 @@ export default function ResumePage() {
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status]);
+  }, [status, router]);
 
-  useEffect(() => {
-    if (status === "authenticated" && session?.user?.email) {
-      fetchResumes();
-    }
-  }, [status, session]);
 
-  const fetchResumes = async () => {
+  const fetchResumes = useCallback(async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/resumes", {
+      const res = await axios.get(`${API_BASE_URL}/api/resumes`, {
         headers: { "X-User-Email": session?.user?.email || "" },
       } as AxiosRequestConfig);
       setResumes(res.data);
@@ -100,7 +97,13 @@ export default function ResumePage() {
       console.error(err);
       setError("Failed to load resumes.");
     }
-  };
+  }, [session?.user?.email, API_BASE_URL]);
+
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.email) {
+      fetchResumes();
+    }
+  }, [status, session, fetchResumes]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,7 +120,7 @@ export default function ResumePage() {
     setError(null);
 
     try {
-      await axios.post("http://localhost:5000/api/resumes", formData, {
+      await axios.post(`${API_BASE_URL}/api/resumes`, formData, {
         headers: {
           "X-User-Email": session?.user?.email || "", },
       } as AxiosRequestConfig);

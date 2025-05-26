@@ -2,6 +2,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function AccountPage() {
   const { status, data: session } = useSession();
@@ -11,12 +12,12 @@ export default function AccountPage() {
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status]);
+  }, [status, router]);
 
   if (status === "loading") return <div className="p-4 text-center">Loading...</div>;
   if (status === "unauthenticated") return null;
 
-  const { user } = session;
+  const user = session?.user;
 
   return (
     <div className="min-h-screen bg-neutral-100 flex items-center justify-center px-4 md:ml-64">
@@ -25,10 +26,13 @@ export default function AccountPage() {
 
         <div className="flex flex-col items-center gap-4">
           {user?.image && (
-            <img
+            <Image
               src={user.image}
               alt="Profile"
-              className="w-24 h-24 rounded-full border object-cover"
+              width={96}
+              height={96}
+              className="rounded-full border object-cover"
+              referrerPolicy="no-referrer"
             />
           )}
 
@@ -40,13 +44,13 @@ export default function AccountPage() {
           <div className="w-full mt-6 space-y-3">
             <Link
               href="/"
-              className="block text-center w-full py-2 rounded-lg bg-blue-100 text-blue-900 hover:bg-blue-200 transition font-medium"
+              className="block text-center w-full py-2 rounded-lg bg-white text-black hover:bg-gray-200 hover:text-gray-600 transition font-medium"
             >
               Back to Dashboard
             </Link>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition font-medium"
+              className="w-full py-2 rounded-lg bg-black text-white hover:bg-gray-600 hover:text-gray-200 transition font-medium"
             >
               Log Out
             </button>

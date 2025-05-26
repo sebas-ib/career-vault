@@ -12,7 +12,6 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     applications = db.relationship("JobApplication", backref="user", lazy=True)
-    notes = db.relationship("Note", backref="user", lazy=True)
 
 
 class JobApplication(db.Model):
@@ -32,7 +31,6 @@ class JobApplication(db.Model):
     applied_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    notes = db.relationship("Note", backref="application", lazy=True)
     resume = db.relationship("Resume", backref="applications_used", lazy=True)
 
 

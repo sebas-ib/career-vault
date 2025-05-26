@@ -37,7 +37,7 @@ export default function EditJobPage() {
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status]);
+  }, [status, router]);
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.email && id) {
@@ -47,7 +47,7 @@ export default function EditJobPage() {
           headers: {
             "X-User-Email": session.user.email,
           },
-        } as AxiosRequestConfig<any>)
+        } as AxiosRequestConfig)
         .then(res => {
           setFormData({
             ...res.data,
@@ -66,7 +66,7 @@ export default function EditJobPage() {
       axios
         .get("http://localhost:5000/api/resumes", {
           headers: { "X-User-Email": session.user.email },
-        })
+        } as AxiosRequestConfig)
         .then(res => setResumes(res.data))
         .catch(() => setError("Failed to load resumes."));
     }
@@ -108,7 +108,7 @@ export default function EditJobPage() {
           },
         } as AxiosRequestConfig
       );
-      router.push("/applications");
+      router.push("/");
     } catch (err) {
       console.error(err);
       setError("Failed to save changes.");
