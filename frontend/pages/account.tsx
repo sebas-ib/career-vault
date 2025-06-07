@@ -44,7 +44,7 @@ export default function AccountPage() {
 
                     <div className="w-full mt-6 space-y-3">
                         <Link
-                            href="/"
+                            href="/frontend/pages/applicationspage"
                             className="block text-center w-full py-2 rounded-lg bg-white text-black hover:bg-gray-100 transition font-medium"
                         >
                             Back to Dashboard

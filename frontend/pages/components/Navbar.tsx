@@ -31,7 +31,7 @@ export default function Navbar() {
                     </button>
 
                     <div className="flex-direction: column">
-                        <Link href="/" className="text-2xl font-bold text-gray-800">
+                        <Link href="/applicationspage" className="text-2xl font-bold text-gray-800">
                             CareerVault
                         </Link>
                         <p className="text-sm text-gray-400">
@@ -90,7 +90,7 @@ export default function Navbar() {
                         <div>
                             <p className="text-xs font-semibold text-gray-500 uppercase mb-2 pt-5">Navigation</p>
                             <nav className="flex flex-col gap-2 text-sm">
-                                <SidebarLink onClick={() => setIsSidebarOpen(false)} href="/"
+                                <SidebarLink onClick={() => setIsSidebarOpen(false)} href="/applicationspage"
                                              icon={<ClipboardList className="w-5 h-5"/>}>
                                     My Vault
                                 </SidebarLink>
