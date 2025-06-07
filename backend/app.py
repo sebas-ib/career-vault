@@ -1,17 +1,20 @@
-from datetime import datetime
+import os
+import boto3
+import requests
+import re
+import json
+from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from google.oauth2 import id_token
+from flask_sqlalchemy import SQLAlchemy
 from google.auth.transport import requests as google_requests
-from dotenv import load_dotenv
-from bs4 import BeautifulSoup
-import requests
-import os
-from uuid import UUID
-import boto3
+from google.oauth2 import id_token
 from werkzeug.utils import secure_filename
+from datetime import datetime
+from uuid import UUID
+from huggingface_hub import InferenceClient
 
 
 # Load env
@@ -28,11 +31,11 @@ CORS(app, supports_credentials=True, resources={r"/*": {"origins": [
     "https://careervaultapp.com"
 ]}}, allow_headers=["Content-Type", "Authorization", "X-User-Email"])
 
-API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 HF_TOKEN = os.environ.get("API_TOKEN")
-HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
-print("Token loaded:", bool(HF_TOKEN))
+HF_CHAT_MODEL = "meta-llama/Llama-3.1-8B-Instruct"  # use latest model name!
+HF_CLIENT = InferenceClient(provider="hf-inference", api_key=HF_TOKEN)
 
+print("HF chat client ready:", bool(HF_TOKEN))
 
 # DB Setup
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
@@ -43,29 +46,92 @@ migrate = Migrate(app, db)
 from models import User, JobApplication, Resume
 
 
+def extract_job_posting_fields(text: str) -> dict:
+    """Send job post text to LLaMA 3 chat model and extract structured fields."""
+    try:
+        prompt = f"""
+        You are a job posting parser.
+
+        Extract the following fields from this job post and RETURN THEM AS VALID JSON ONLY:
+
+        - title
+        - company
+        - location (if multiple return as single string)
+        - job_type (Full-Time, Part-Time, Contract, Internship)
+        - description (as a single string — include Responsibilities, Requirements, Qualifications as separate, organized sections in the text)
+
+        RULES:
+
+        - DO NOT return any explanations.
+        - DO NOT write any code.
+        - DO NOT wrap in triple backticks.
+        - JUST return the JSON object.
+
+        ### Example Outputs:
+
+        {{
+            "title": "Software Engineer",
+            "company": "Amazon",
+            "location": "San Francisco, CA, USA; Bellevue, WA, USA; San Diego, CA, USA",
+            "job_type": "Full-Time",
+            "description": "Responsibilities:\\n- Develop and maintain web applications\\n- Collaborate with cross-functional teams\\n\\nRequirements:\\n- 3+ years experience in software development\\n- Proficiency in Python and JavaScript\\n\\nQualifications:\\n- Bachelor's degree in Computer Science or related field"
+        }}
+        
+        {{
+            "title": "Software Developer",
+            "company": "CompanyName",
+            "location": "San Diego, CA, USA",
+            "job_type": "Internship",
+            "description": "Responsibilities:\\n- Develop and maintain web applications\\n- Collaborate with cross-functional teams\\n\\nRequirements:\\n- 3+ years experience in software development\\n- Proficiency in Python and JavaScript\\n\\nQualifications:\\n- Bachelor's degree in Computer Science or related field"
+        }}
+
+        Now here is the job post text to parse:
+
+        ---
+        {text}
+        ---
+        """
+
+        completion = HF_CLIENT.chat.completions.create(
+            model=HF_CHAT_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+        )
+
+        response_text = completion.choices[0].message.content
+        print("LLAMA-3 raw response:", response_text)
+
+        # Extract JSON block safely (handle ```json or plain)
+        json_match = re.search(r"```json\s*(\{.*?\})\s*```", response_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            # fallback: try to parse entire response if no code block
+            json_str = response_text.strip()
+
+        print("Extracted JSON string:", json_str)
+
+        # Parse JSON
+        parsed = json.loads(json_str)
+        return parsed
+
+    except Exception as e:
+        print("LLaMA extraction error:", e)
+        return {
+            "title": None,
+            "company": None,
+            "location": None,
+            "job_type": None,
+            "description": None,
+        }
+
+
 def clean_text(text):
     return ' '.join(text.split())
-
-
-def summarize_text(text, max_length=130, min_length=30):
-    cleaned = clean_text(text)
-    payload = {
-        "inputs": cleaned,
-        "parameters": {
-            "max_length": max_length,
-            "min_length": min_length,
-            "do_sample": False
-        }
-    }
-
-    try:
-        response = requests.post(API_URL, headers=HEADERS, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        return result[0].get("summary_text", "")
-    except Exception as e:
-        print("Summarizer API error:", e)
-        return "Summary generation failed."
 
 
 # Helpers
@@ -288,7 +354,6 @@ def handle_applications():
         return jsonify({"message": "Application added successfully."}), 201
 
 
-
 @app.route('/api/applications/<uuid:app_id>', methods=['GET', 'PATCH', 'DELETE'])
 def handle_application_by_id(app_id: UUID):
     user, error, status_code = get_current_user()
@@ -333,7 +398,6 @@ def handle_application_by_id(app_id: UUID):
         return jsonify({"message": "Application deleted."})
 
 
-
 @app.route("/api/parse-url", methods=["POST"])
 def parse_job_url():
     url = request.json.get("url")
@@ -361,63 +425,93 @@ def parse_job_url():
             company.get_text(strip=True) if company else "Company Not Found"
         )
 
-        # Keywords to search for
-        keywords = [
-            "responsibilities", "requirements", "qualifications", "job", "position",
-            "expectations", "experience", "design", "description", "engineer",
-            "develop", "skills", "team", "role", "tasks", "opportunity"
+        # Extract all visible paragraphs
+        all_paragraphs = soup.find_all(["p", "li"])
+        paragraph_texts = [p.get_text(strip=True) for p in all_paragraphs]
+        full_visible_text = "\n".join(paragraph_texts)
+        full_visible_text = clean_text(full_visible_text)
+
+        # Section targeting and keyword scoring
+
+        KEYWORDS = [
+            "responsibilities", "requirements", "qualifications", "skills", "experience",
+            "job", "position", "team", "opportunity", "expectations", "tasks", "desired"
         ]
 
-        # Search for text containers
         candidate_sections = []
         for tag in ["section", "article", "div", "main"]:
             containers = soup.find_all(tag)
             for container in containers:
-                text = " ".join(p.get_text(strip=True) for p in container.find_all(["p", "li"]))
-                word_count = len(text.split())
-                if word_count >= 100:  # Skip tiny containers
-                    keyword_hits = sum(1 for kw in keywords if kw in text.lower())
-                    candidate_sections.append((keyword_hits, text[:10000]))  # Keep first 10k chars max
+                section_text = " ".join(p.get_text(strip=True) for p in container.find_all(["p", "li"]))
+                word_count = len(section_text.split())
+                keyword_hits = sum(1 for kw in KEYWORDS if kw in section_text.lower())
 
-        # Pick the section with the most keyword hits
+                if word_count >= 100 and keyword_hits > 0:
+                    candidate_sections.append((keyword_hits, section_text))
+
+        # Pick best section
         candidate_sections.sort(reverse=True, key=lambda x: x[0])
-        best_text = candidate_sections[0][1] if candidate_sections else ""
+        best_section_text = candidate_sections[0][1] if candidate_sections else ""
 
-        # Fallback
-        if not best_text:
+        # Build prioritized text
+
+        MAX_VISIBLE_CHARS = 6000
+        prioritized_text = ""
+
+        if best_section_text:
+            print(f"Using best section (keyword hits: {candidate_sections[0][0]})")
+            prioritized_text = best_section_text
+        else:
+            print("No strong section found — prioritizing keyword paragraphs")
+            # Rank paragraphs by keyword hits
+            ranked_paragraphs = sorted(
+                paragraph_texts,
+                key=lambda para: sum(1 for kw in KEYWORDS if kw in para.lower()),
+                reverse=True
+            )
+            # Add paragraphs until we hit char limit
+            selected_paragraphs = []
+            current_length = 0
+            for para in ranked_paragraphs:
+                para_length = len(para)
+                if current_length + para_length + 1 > MAX_VISIBLE_CHARS:
+                    break
+                selected_paragraphs.append(para)
+                current_length += para_length + 1  # +1 for newline
+            prioritized_text = "\n".join(selected_paragraphs)
+
+        # Truncate if still too long
+        if len(prioritized_text) > MAX_VISIBLE_CHARS:
+            prioritized_text = prioritized_text[:MAX_VISIBLE_CHARS]
+
+        final_char_count = len(prioritized_text)
+        print(f"Final selected text char count: {final_char_count}")
+
+        # If too small, fallback
+        if len(prioritized_text.split()) < 50:
             return jsonify({
                 "title": title_text,
                 "company": company_text,
                 "job_type": "Unknown",
                 "location": "Unknown",
-                "description": "Couldn't summarize description"
+                "description": "Couldn't extract content (too small)"
             })
 
-        if not best_text or len(best_text.split()) < 50:
-            return jsonify({
-                "title": title_text,
-                "company": company_text,
-                "job_type": "Unknown",
-                "location": "Unknown",
-                "description": "Couldn't summarize description"
-            })
+        # Run extraction with LLaMa
 
-        # Summarize
-        summary = summarize_text(best_text[:1500])
-        if not summary or len(summary.strip()) < 40:
-            summary = best_text[:1000]
+        extracted_fields = extract_job_posting_fields(prioritized_text)
 
-        return jsonify({
-            "title": title_text,
-            "company": company_text,
-            "job_type": "Unknown",
-            "location": "Unknown",
-            "description": summary
-        })
+        # Fallbacks for title & company
+        extracted_fields["title"] = extracted_fields.get("title") or title_text
+        extracted_fields["company"] = extracted_fields.get("company") or company_text
+
+        return jsonify(extracted_fields)
 
     except Exception as e:
         print("URL parsing error:", e)
         return jsonify({"error": f"Failed to parse job URL: {str(e)}"}), 500
+
+
 
 
 
