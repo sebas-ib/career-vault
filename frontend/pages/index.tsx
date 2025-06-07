@@ -22,6 +22,7 @@ export default function Home() {
                 <title>CareerVault</title>
                 <meta name="description" content="CareerVault helps you track job applications, manage resumes, and organize your job search efficiently." />
                 <meta name="robots" content="index, follow" />
+                <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7680758891660751" crossOrigin="anonymous"></script>
             </Head>
 
             <div className="min-h-screen bg-gradient-to-b from-white via-neutral-100 to-white flex flex-col items-center justify-center p-8">
